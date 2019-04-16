@@ -1,0 +1,101 @@
+* Babysteps: Clojure backend systems for beginners
+Learning Clojure feels like setting full sail in a thunderstorm. There are so
+many things to learn. So many pitfalls. Where do I start? I've been looking for
+a solution to that problem. Here's by story.
+** Project databases needed in civil engineering projects
+Unlike some Clojurians, I don't have a long backround in creating Java
+systems. Working with continuous systems is new to me. For the last four years,
+I've been working in civil engineering. I've designed constructions of concrete
+and steel, coordinating with the rest of the team as required. As a civil
+engineer, I've got more than an average dose of interest in computer
+science. I was fortunate enough to choose /Engineering and ICT/ at NTNU, a
+study programme designed to merge towers of knowledge from traditional
+engineering with computer science.
+
+Engineering needs ICT dearly. So my journey into the workforce began. I worked
+towards bridging the gap between traditional, reliable tools and newfound
+possibilities. I built an application that computed the required amount of
+concrete reinforcement based on our finite element analyses that was better
+integrated with the rest of our tooling than our options. When working with data
+others delivered to me in an Excel format, I tried to solve the data interfacing
+on my part neatly, without disturbing the process flow too much. I built an
+analysis server that allowed us to send heavy jobs off to a central, fast
+computer, and keep our laptops cool and snappy.
+
+But there are limits to how much a system can be improved from /individual/
+contributions. The large effects come when the parts talk to each other in
+better ways. If I restrain myself to the solutions that are possible without
+affecting others, I cannot improve interfaces; the way data flows. This is where
+I've been aiming lately. And thinking of the data interfaces has lead me to
+realize a missing piece. A piece we have when we develop systems. A piece that
+allows all the moving parts to talk to each other seamlessly. The database.
+
+We often don't realize how important the database is; we just suppose that we're
+going to use it each time we write a continuous system. And now that I've
+started to notice the effects of the absence of the database, I see them
+everywhere. Let me provide some domain insight.
+
+When we work with constructions in the design phase, we are /planning what we
+are going to build/ in such a way that there will be no surprises. No
+collapses. No functional errors. No huge maintenance costs. There /will/ be
+surprises, but prepare for them, and mitigate the effects; the maximum
+impact. If you're able to do it all yourself, all is simple. Just as if you're
+able to put the whole application into your own head, you don't have that much
+of a challenge; when you can see, refactor and understand the whole system,
+understanding every part, your job is simple, relative to the option. When a
+team is needed for just the structural integrity, everything gets harder -- and
+by consequence more interesting.
+
+There's a structural difference here: should a person be in the loop for each
+data exchange? I send you an E-mail, you respond. I point you to an Excel file
+on a shared drive, you read it. I update the Excel file, you take another
+look. How can we break this loop? By interacting with a database instead of
+interacting directly with people. The database is always there. The database is
+always on. We never have to wait for it. We just interface with it. Putting data
+in it is standardized. Getting data from it is standardized. When I get data
+from the Excel sheet you emailed me, I can't remove all manual work. When I work
+with the database, I work with a reference to the current valid data. And when
+that reference gets updated, I can work with the new data, for free. Using a
+database as an interface cuts marginal costs.
+
+Here comes my thesis.
+
+  Civil engineering projects should structure data interfacing with a
+  database. Projects should be able to evolve their database schemas
+  independently, but stable schemas enable writing common tools.
+
+So, where does that leave me? I suddenly need to work with long-running
+systems. I'm comfortable programming and scripting, I've been avoiding writing
+long-running processes due to the overhead maintaining them. In this case, I
+believe they are required. So I need to learn that backend.
+** Learning to work with databases and the backend
+Scripting is simpler than working with backend systems. When you're scripting,
+what you do doesn't really matter because you can always change the script, fix
+it. And the next time, you write a better script. Scripts are disposable.
+
+Backend systems not so much. When you've decided on a way to do things, you have
+to stick to that, somehow. You can't throw the thing out, and reshape it. You
+need to live with your choices. That thinking has left me in the hammock for a
+long time, and I think I'm ready to step out. This is what I'm thinking:
+
+- Run on an Ubuntu VPS
+- Install Datomic on it
+- Run backend apps on it with Dokku, and connect the apps to the database as
+  required.
+- Don't serve clients from the VPS -- keep those "serverless". Consider Netlify,
+  and just talk to the interface!
+
+That setup is a little harder infrastructure wise than just installing
+PostgreSQL and using that. Dokku has good support for "standard" PostgreSQL. Why
+choose Datomic then? I don't want to maintain a PostgreSQL system. I just
+don't. Those tables. After having touched Datascript and relational modeling
+enough to understand the core principles, I don't want to end up with those huge
+tables and adding extra tables just to model some relation. Having the database
+index relationships instead seems like a better idea. Moving from thinking about
+entities (with attributes as columns in tables) towards modeling relationships
+and letting entities be a collection of relationships seems just ... better.
+
+So I'm not willing to work with a database other than Datomic (yeah, quite some
+statement), and I need to have a server running somewhere. This seems like the
+best way to go ahead. Cost isn't too bad, either. Running a 2 GB DigitalOcean
+droplet is $10 per month, plus a little more for a domain, if that's required.
