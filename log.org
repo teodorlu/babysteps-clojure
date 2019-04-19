@@ -1,7 +1,7 @@
 * Babysteps: Clojure backend systems for beginners
 Learning Clojure feels like setting full sail in a thunderstorm. There are so
 many things to learn. So many pitfalls. Where do I start? I've been looking for
-a solution to that problem. Here's by story.
+a solution to that problem. Here's my story.
 ** Project databases needed in civil engineering projects
 Unlike some Clojurians, I don't have a long backround in creating Java
 systems. Working with continuous systems is new to me. For the last four years,
@@ -99,3 +99,264 @@ So I'm not willing to work with a database other than Datomic (yeah, quite some
 statement), and I need to have a server running somewhere. This seems like the
 best way to go ahead. Cost isn't too bad, either. Running a 2 GB DigitalOcean
 droplet is $10 per month, plus a little more for a domain, if that's required.
+** Plan for infrastructure
+Working with Datomic, we want to avoid having to execute everything as
+root. Thus, we don't want a bare Dokku container service, but rather a standard
+Ubuntu server that we've set up to run Dokku containers. But where were we
+writing this?
+
+Let's have a look at our Spacemacs usage history, and see what we were doing. I
+think I was commenting quite heavily. Checked! We don't have to. It was the last
+entry in the work log, so we can just keep on as if nothing had happened. But we
+do need to reset everything ... Hmm.
+
+Yup, we should kill it off. We're going experimental here. Trying to use 18.04
+LTS while it's not really supported for Dokku. Is this a good idea? Dunno. Let's
+find out. (Yeah, perhaps not a good idea at all, but heck, we're learning stuff,
+I don't want to be tied down). Terminal spawns a bunch of reporting. Setting up
+NGINX and lots of things. This does seem to work. Ubuntu should break things on
+purpose, at least. Now it seems to have started installing and downloading
+things, and setting things up. How much resources does this consume, I wonder?
+Quite a bit, it seems. All the CPU, but not much of the RAM. Still no errors.
+
+Install completed, and all seems to be good.
+
+On a sidenode, I'd like to configure the cursors for Evil with a slightly more
+evil than normal cursor ... normally I use #FF00FF (RGB). If I want to make it
+redder, i can tone down the blue to #FF008F, which should be about half the
+saturation.
+** Setting up our container system for simple deploys
+TODO: Better explain Dokku setup. This is currently scattered around, and not as
+clear as it should be. Consider this a log. For example, I have not written on
+the initial screen, and virtual host naming for apps.
+
+So we're off. We're going to make sure our Ubuntu VPS can run our
+containers. That's quite easy with dokku. We need to ensure something else,
+though -- is our firewall secure? Let's find out with Python.
+
+  python3 -m http.server 8080
+
+This made our home folder widely available to the internet on port :8080, which
+we don't want, at all! Let's fix this. We need to configure our firewall for
+that. Fix was fast.
+
+  sudo ufw allow 80
+  sudo ufw allow 22
+  sudo ufw allow 443
+  sudo ufw enable
+
+Done. Doesn't even get a response, that's how we like it.
+
+Deploying our standard app is easy. Just follow the Dokku docs -- this is where
+Dokku shines. We name our app next, and we're using the domain d2.purelogic.no
+for our Dokku container service. Quick steps for this part from my side:
+
+1. Set your domain A record for your dokku container service to the server's IP
+   address. The domain we use here is next.d2.purelogic.no, since we've set
+   d2.purelogic.no and *.d2.purelogic.no to redirect with A records to our Dokku
+   server.
+2. Create your dokku app: =dokku apps:create next=
+3. In your local Git repo, create your Clojure project. I'm going create a
+   server based on Duct with =lein new duct next +cljs +site +example +api
+   +ataraxy=. The list is long, but that lets us test a bunch of functionality
+   for our container service. If we want to simplify later, we can just create a
+   new app and delete this one.
+4. We then setup our remote =dokkku= to point to =dokku@d2.purelogic.no:next=.  
+
+Next up is securing. Dokku Letsencrypt integration is /sweet/. Let's get on with
+it. To be able to install any certificates, we must specify an E-mail for
+letsencrypt registration. We're going to use a global email for all our apps.
+
+  sudo dokku config:set --global DOKKU_LETSENCRYPT_EMAIL=th@purelogic.no
+
+Now, we're ready to install. Since I'm continuing from last time, I'm going to
+check my previous work.
+
+  sudo dokku apps:list
+  # prints next
+
+That's the name app we installed, and what we need to use now. Then install the
+plugin.
+
+  sudo dokku plugin:install https://github.com/dokku/dokku-letsencrypt.git
+
+And let's set up auto renewal for certificates at once, so that we don't have to
+return in a few months when our certificates expire. Less work for future Teodor.
+
+  sudo dokku letsencrypt:cron-job --add
+
+... aaand enable!
+
+  sudo dokku letsencrypt next
+
+We see a bunch of output from letsencrypt. After a little waiting, the command
+is done. We check next.d2.purelogic.no. It redirects to HTTP and the browser
+gives us a green lock, "verified by Let's Encrypt". Sucess!
+
+But when we navigate to d2.purelogic.no, we get a surprise. We are redirected to
+HTTPS, and we get a certificate error. Ouch! This isn't what we wanted! Why is
+this?
+
+When we check the certificate in detail, we see that it is provisioned for
+next.d2.purelogic.no, /not/ d2.purelogic.no. Perhaps Dokku should have done this
+for us. Dunno. There's something about default sites in the documentation, and
+something about wildcard domains. We're going for a simple solution -- defining
+the default domain directly, and then provisioning an SSL certificate
+specifically for d2.purelogic.no.
+
+  sudo dokku domains:add next d2.purelogic.no
+
+... and now we can just re-run the letsencrypt job.
+
+  sudo dokku letsencrypt next
+
+Dokku letsencrypt picks up the domain we specified, and happily requests
+certificates for both subdomains. Good!
+
+We can now push any changes, and they are automatically running live! How nice!
+No deployment sillyness, no loads of manual testing.
+
+*A note on stability*. I will not set up a development server for this project.
+ In my (personal) use case, this is because I will be maintaining /database/
+ stability; consider the contents of the database sacred, and would not like to
+ introduce another release step. I can work closely with the people who will
+ depend on my service, so I am not afraid. If cost of failure was higher, I
+ should consider separate services for running the application /outside/ of
+ production. That would require thinking about how I should handle the database.
+ This is scope for another day.
+** Plan for database
+I chose to use Ubuntu LTS 18.04 as a base for our system to make it simpler to
+work with the database. I am by no means a DevOps expert, but I do have Linux
+experience, and I know how to run things on Linux.
+
+Another limitation: I don't fully understand the utility of containers. So I'm
+/not/ going to containerize the database, because I don't know how that would be
+useful. I /am/ going to stick my apps in containers, because I should be able to
+kill them off and restart on a whim, when I push new source. The database, in
+contrast, I am going to manage by hand. 
+
+First steps:
+
+1. Download datomic to the server
+2. Install PostgreSQL
+3. Setup a PostgreSQL backend for Datomic
+4. Run the Datomic transactor by hand
+
+Follow-ups:
+
+- How do I run a Peer-based Datomic application connecting to this transactor?
+- What about clients?
+- How should I update Datomic?
+- How should I "persist" the transactor running? How about working with Dokku?
+  Should I try to run it as a dokku app, just without any "exposing web"? Do I
+  end up with a Dockerimage then?
+  - Some work has been made packaging Datomic for Dokku.
+
+Does that invalidate the first steps? No, I should probably just learn to use it
+"by hand" first anyway, so that I understand what I'm doing. Later, I need to
+manage this properly. For now, I could go with "Terminals in TMUX", and add onto
+that later.
+
+I think I would like to have datomic.d2.purelogic.no and
+peer-server.d2.purelogic.no, and be able to connect to those. Not sure about
+ports. We'll see.
+** Setting up a database #1
+Practically, let's get that database up and running, and accessible from the
+user-facing apps.
+*** Goals
+- Download Datomic Starter Pro
+- Install PostgreSQL
+- Setup transactor
+- Run transactor
+- Run Datomic Console
+
+Then we should be good to go!
+*** Implementation
+- Download Datomic 0.9.5786 from my.datomic.com
+- Unpack into ~/opt
+
+Oops, need to install Java. Let's see what OpenJDK has to offer. =apt show
+openjdk-11-jdk-headless= seems to be what we wanted. So, install that.
+
+  sudo apt install openjdk-11-jdk-headless
+
+Now =which java= and =which javac= work as expected. Nice. And bin/repl got us a
+Clojure 1.9 REPL. It works!
+
+I'm following mostly the [[https://docs.datomic.com/on-prem/dev-setup.html][Local Dev Setup]] docs here. I want to use PostgreSQL and
+not "just dev", so I keep [[https://docs.datomic.com/on-prem/storage.html][Setting Up Storage Services]] at hand as well. Already
+in the first steps of the local dev setup, we start up a transactor. The
+transactor requires the storage backend, so I guess this is the time to install
+PostgreSQL. PostgreSQL 10 is in the Ubuntu repos. Version 11 is out, but I'm
+sticking with the Ubuntu version. Less work for me.
+
+  sudo apt install postgresql-10
+
+That installed postgresql. Now we need to make sure it's running. (As I'm doing
+this, I feel slightly blasphemous for just putting all these distributed apps on
+the same machine. But let's plow through.)
+
+After installing PostgreSQL, I'm left wondering if it's running or not. I'm just
+going to check. Listing processes with =ps aux= gave a lot of results, so =ps
+aux | grep post= was better. (Or use [[https://github.com/mooz/percol][Percol]], a favourite of mine, you can
+install it with Apt). As a matter of fact, it's running, even after a reboot! So
+I don't think I need to start anything.
+
+But how is this thing starting? Is there some Systemd stuff installed? =sudo
+systemctl list-unit-files | grep post= gave us the PostgreSQL gave the unit
+file. =sudo systemctl status postgresql.service= gave me that the unit file is
+at =/lib/systemd/system/postgresql.service=. There's also =postgresql@.service=
+in the same directory.
+
+I'm not going to dig deeper here, but I'm happy to know that installing
+PostgreSQL from the default repos seemed to do just what I wanted; installed and
+setup PostgreSQL to run in the background.
+
+Now, we need to connect PostgreSQL to Datomic. For that we need to give Datomic
+permission to work with our SQL database. We can use this with an SQL prompt.
+For PostgreSQL, this is psql. Trying to run it as myself (teodorlu), I get the
+error "psql: FATAL: role "teodorlu" does not exist". This is because PostgreSQL
+has its own security model. And it has its own user! So let's try the same as
+the postgresql user. =sudo -u postgres psql=. We're in. =select 1+1;= gives
+us 2. We can even put =select 1+1;= in test.sql and =sudo -u postgres psql <
+test.sql= to run the same. This is exactly what we're going to do next!
+
+Because we want Datomic. And the Datomic team has kindly provided us with SQL
+files for us. These set up the table we want, with the permission we want. We
+just need to run them with the right permissions in a PostgreSQL prompt. The
+files we want are
+=~/opt/datomic-pro-0.9.5786/bin/sql/{postgres-db.sql,postgres-table.sql,postgres-user.sql}=.
+So we just need to run these. I guess the table must be created /after/ the db.
+Looking at the source, I don't think order matters for the user.
+
+We go to the folder where we unzipped Datomic, and log in as the postgres user.
+The postgres user is the "root user" of our database, and can create databases
+and grant access. Note: postgres is /both/ a Unix user and a PostgreSQL user. It
+doesn't normally have a password, and we can log into it with =sudo su
+postgres=, and run any commands we need from there.
+
+  cd ~/opt/datomic-pro-0.9.5786
+  sudo su postgres
+
+Now, we run the scripts as per the [[https://docs.datomic.com/on-prem/storage.html#sql-database][storage docs]]. Note: the sql scripts need to
+be run in the correct context. We need to create the datomic_kvs table in the
+datomic database, so don't just paste the SQL files into the prompt (I've
+already done this).
+
+  psql -f bin/sql/postgres-db.sql -U postgres
+  psql -f bin/sql/postgres-table.sql -U postgres -d datomic
+  psql -f bin/sql/postgres-ser.sql -U postgres -d datomic
+
+This should have created a user datomic with pass datomic. It can connect to the
+database datomic, which has a single table datomic_kvs.
+
+So we should test this. Log out of the postgres user, and jump back into your
+own account.
+
+  psql --host=localhost --dbname=datomic --username=datomic
+
+A prompt should appear. Enter datomic in there. Did you get to an SQL prompt?
+Can you =SELECT 1+1 ;= in there? If you list the tables with =\dt=, do you see
+the datomic_kvs table? And if you =SELECT * FROM datomic_kvs ;=, do you see the
+columns id, rev, map and val? If so, you've gotten as far as I have! Pat
+yourself on the back. Good lad. Good gal. Good dog. Whatever you prefer.
