@@ -1,0 +1,5 @@
+bin/run -m datomic.peer-server \
+           -h localhost \
+           -p 5432 \
+           -a th-test,e6ab9aa55e9d7fc9 \
+           -d bf,datomic:sql://bf?jdbc:postgresql://localhost:5432/datomic?user=datomic&password=datomic
