@@ -271,7 +271,7 @@ user-facing apps.
 - Run Datomic Console
 
 Then we should be good to go!
-*** Implementation
+*** Implementation #1: the PostgreSQL storage service
 - Download Datomic 0.9.5786 from my.datomic.com
 - Unpack into ~/opt
 
@@ -360,3 +360,48 @@ Can you =SELECT 1+1 ;= in there? If you list the tables with =\dt=, do you see
 the datomic_kvs table? And if you =SELECT * FROM datomic_kvs ;=, do you see the
 columns id, rev, map and val? If so, you've gotten as far as I have! Pat
 yourself on the back. Good lad. Good gal. Good dog. Whatever you prefer.
+*** Implementation #2: running Datomic
+Goals for now:
+
+- Run a transactor connected to the PostgreSQL storage we created
+- Create testdb on it
+- Ensure that some rows end up in the PostgreSQL table
+- Put a value in the PostgreSQL table
+- Ensure that more rows were added to the PostgreSQL backend
+- Get the value back
+
+Specifically:
+
+#+begin_src clojure
+  (def test-db-name "test-db")
+  (def test-fact
+    {:test/is-alive true
+     :test/vitality 9001})
+#+end_src
+
+We're going to test doing this from the REPL. When we started our transactor, it
+printed a message:
+
+  Starting datomic:sql://<DB-NAME>?jdbc:postgresql://localhost:5432/datomic?user=datomic&password=datomic, you may need to change the user and password parameters to work with your jdbc driver ...
+  System started datomic:sql://<DB-NAME>?jdbc:postgresql://localhost:5432/datomic?user=datomic&password=datomic, you may need to change the user and password parameters to work with your jdbc driver
+
+In that case, I think we should have the following URI:
+
+#+begin_src clojure
+  (def test-db-uri
+    "datomic:sql://test-db?jdbc:postgresql://localhost:5432/datomic?user=datomic&password=datomic")
+#+end_src
+
+Following along the [[https://docs.datomic.com/on-prem/dev-setup.html#create-db][local dev setup docs]], I think we have what we want.
+
+#+begin_src clojure
+  (require '[datomic.api :as d])
+  (def test-db-uri "datomic:sql://test-db?jdbc:postgresql://localhost:5432/datomic?user=datomic&password=datomic")
+  (d/create-database test-db-uri)
+#+end_src
+
+Running this took a while, and gave me back an error:
+
+  ActiveMQNotConnectedException AMQ119007: Cannot connect to server(s). Tried with all available servers.  org.apache.activemq.artemis.core.client.impl.ServerLocatorImpl.createSessionFactory (ServerLocatorImpl.java:799)
+
+But I can't get it working! I might need it to post to the Datomic forum.
